@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    border-color: theme("colors.surface.border");
+  }
+
+  body {
+    @apply bg-surface text-white;
+  }
+
+  /* Scrollbar — dark themed */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: theme("colors.surface.DEFAULT"); }
+  ::-webkit-scrollbar-thumb { background: theme("colors.surface.elevated"); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: theme("colors.surface.border"); }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-card border border-surface-border rounded-xl p-4;
+  }
+
+  .badge-up {
+    @apply text-success text-xs font-mono font-semibold;
+  }
+
+  .badge-down {
+    @apply text-danger text-xs font-mono font-semibold;
+  }
+
+  .address {
+    @apply font-mono text-sm text-brand;
+  }
+}
