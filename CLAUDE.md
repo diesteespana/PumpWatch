@@ -8,7 +8,7 @@ Vision: Bloomberg Terminal for on-chain intelligence.
 | # | Scope | Status |
 |---|-------|--------|
 | 1 | Scaffold, Docker, CI/CD, CLAUDE.md | ✅ Done |
-| 2 | Blockchain abstraction layer + Etherscan impl | ⬜ |
+| 2 | Blockchain abstraction layer + Etherscan impl | ✅ Done |
 | 3 | DB models, repositories, Alembic migrations | ⬜ |
 | 4 | Detection engine + event classification | ⬜ |
 | 5 | Notification engine (Telegram, Discord, Email) | ⬜ |

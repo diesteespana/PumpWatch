@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     infura_project_id: str = ""
     moralis_api_key: str = ""
 
+    # ── Price Oracle ──────────────────────────────────────
+    coingecko_api_key: str = ""  # optional; free tier works without it
+
     # ── Detection Thresholds ──────────────────────────────
     whale_threshold_usd: float = 100_000.0
     blockchain_poll_interval_seconds: int = 30

@@ -24,7 +24,12 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("pumpwatch_startup", environment=settings.app_env)
+    from app.scheduler import start_scheduler, stop_scheduler
+    await start_scheduler()
     yield
+    await stop_scheduler()
+    from app.database.redis import get_redis_client
+    await get_redis_client().aclose()
     logger.info("pumpwatch_shutdown")
 
 
