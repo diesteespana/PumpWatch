@@ -13,9 +13,8 @@ htmlcov/
 .coverage
 coverage.xml
 
-# Alembic
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+# Alembic — track all migrations
+# (no exclusion)
 
 # Environment
 .env

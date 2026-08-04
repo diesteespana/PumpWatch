@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import get_settings
 from app.database.base import Base
 
-# Import all models here so Alembic can auto-detect them
-# from app.models import user, wallet, alert  # Milestone 3
+# Import all models so Alembic autogenerate can detect them
+import app.models  # noqa: F401
 
 config = context.config
 if config.config_file_name:
