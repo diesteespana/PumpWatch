@@ -1,24 +1,34 @@
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.health import router as health_router
+from app.api.v1.routers.alerts import router as alerts_router
+from app.api.v1.routers.auth import router as auth_router
+from app.api.v1.routers.events import router as events_router
+from app.api.v1.routers.notifications import router as notifications_router
+from app.api.v1.routers.users import router as users_router
+from app.api.v1.routers.wallets import router as wallets_router
 from app.core.config import get_settings
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
+    ConflictError,
     NotFoundError,
     PumpWatchError,
     RateLimitedError,
 )
 from app.core.logging import configure_logging, get_logger
+from app.core.middleware import AuditMiddleware
 
 settings = get_settings()
 configure_logging(debug=settings.app_debug)
 logger = get_logger(__name__)
+
+_API_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
@@ -35,14 +45,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="PumpWatch API",
-    description="On-chain analytics and whale tracking platform",
+    description="On-chain analytics and whale tracking — pumpwat.ch",
     version="0.1.0",
     docs_url="/docs" if not settings.is_production else None,
     redoc_url="/redoc" if not settings.is_production else None,
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────
+# ── Middleware (order matters: outermost = first to handle request) ───────────
+app.add_middleware(AuditMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -51,7 +62,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Exception handlers ────────────────────────────────────
+# ── Exception handlers ────────────────────────────────────────────────────────
 @app.exception_handler(NotFoundError)
 async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
@@ -65,6 +76,11 @@ async def auth_handler(request: Request, exc: AuthenticationError) -> JSONRespon
 @app.exception_handler(AuthorizationError)
 async def authz_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": str(exc)})
+
+
+@app.exception_handler(ConflictError)
+async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
 
 @app.exception_handler(RateLimitedError)
@@ -83,6 +99,11 @@ async def domain_error_handler(request: Request, exc: PumpWatchError) -> JSONRes
     )
 
 
-# ── Routers ───────────────────────────────────────────────
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(health_router)
-# Milestone 6: auth, users, alerts, wallets, tokens routers added here
+app.include_router(auth_router, prefix=_API_PREFIX)
+app.include_router(users_router, prefix=_API_PREFIX)
+app.include_router(wallets_router, prefix=_API_PREFIX)
+app.include_router(alerts_router, prefix=_API_PREFIX)
+app.include_router(events_router, prefix=_API_PREFIX)
+app.include_router(notifications_router, prefix=_API_PREFIX)

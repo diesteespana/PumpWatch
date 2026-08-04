@@ -12,7 +12,7 @@ Vision: Bloomberg Terminal for on-chain intelligence.
 | 3 | DB models, repositories, Alembic migrations | ✅ Done |
 | 4 | Detection engine + event classification | ✅ Done |
 | 5 | Notification engine (Telegram, Discord, Email) | ✅ Done |
-| 6 | REST API + Auth (JWT/refresh) | ⬜ |
+| 6 | REST API + Auth (JWT/refresh) | ✅ Done |
 | 7 | Next.js dashboard | ⬜ |
 | 8 | Wallet intelligence + historical analytics | ⬜ |
 | 9 | AI architecture + prediction interfaces | ⬜ |
