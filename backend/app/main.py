@@ -9,7 +9,11 @@ from app.api.v1.health import router as health_router
 from app.api.v1.routers.alerts import router as alerts_router
 from app.api.v1.routers.auth import router as auth_router
 from app.api.v1.routers.events import router as events_router
+from app.api.v1.routers.analytics import router as analytics_router
 from app.api.v1.routers.notifications import router as notifications_router
+from app.api.v1.routers.paper_trading import router as paper_trading_router
+from app.api.v1.routers.strategy import router as strategy_router
+from app.api.v1.routers.tokens import router as tokens_router
 from app.api.v1.routers.users import router as users_router
 from app.api.v1.routers.wallets import router as wallets_router
 from app.core.config import get_settings
@@ -20,6 +24,7 @@ from app.core.exceptions import (
     NotFoundError,
     PumpWatchError,
     RateLimitedError,
+    ValidationError,
 )
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import AuditMiddleware
@@ -90,6 +95,13 @@ async def rate_limit_handler(request: Request, exc: RateLimitedError) -> JSONRes
     )
 
 
+@app.exception_handler(ValidationError)
+async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": str(exc)}
+    )
+
+
 @app.exception_handler(PumpWatchError)
 async def domain_error_handler(request: Request, exc: PumpWatchError) -> JSONResponse:
     logger.error("unhandled_domain_error", error=str(exc), exc_info=True)
@@ -106,4 +118,8 @@ app.include_router(users_router, prefix=_API_PREFIX)
 app.include_router(wallets_router, prefix=_API_PREFIX)
 app.include_router(alerts_router, prefix=_API_PREFIX)
 app.include_router(events_router, prefix=_API_PREFIX)
+app.include_router(analytics_router, prefix=_API_PREFIX)
+app.include_router(tokens_router, prefix=_API_PREFIX)
+app.include_router(paper_trading_router, prefix=_API_PREFIX)
+app.include_router(strategy_router, prefix=_API_PREFIX)
 app.include_router(notifications_router, prefix=_API_PREFIX)

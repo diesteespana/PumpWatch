@@ -13,11 +13,11 @@ Vision: Bloomberg Terminal for on-chain intelligence.
 | 4 | Detection engine + event classification | ✅ Done |
 | 5 | Notification engine (Telegram, Discord, Email) | ✅ Done |
 | 6 | REST API + Auth (JWT/refresh) | ✅ Done |
-| 7 | Next.js dashboard | ⬜ |
-| 8 | Wallet intelligence + historical analytics | ⬜ |
-| 9 | AI architecture + prediction interfaces | ⬜ |
-| 10 | Paper trading simulator | ⬜ |
-| 11 | Automated exchange execution + risk mgmt | ⬜ |
+| 7 | Next.js dashboard | ✅ Done |
+| 8 | Wallet intelligence + historical analytics | ✅ Done |
+| 9 | AI architecture + prediction interfaces | ✅ Done |
+| 10 | Paper trading simulator | ✅ Done |
+| 11 | Automated exchange execution + risk mgmt | ✅ Done |
 
 ## Stack
 - **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.x, Pydantic v2, Alembic, APScheduler

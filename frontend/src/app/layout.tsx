@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "@/components/layout/Providers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({
@@ -11,10 +12,12 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: { default: "PumpWatch", template: "%s | PumpWatch" },
   description: "Real-time on-chain intelligence. Track whales, follow smart money.",
-  metadataBase: new URL("https://pumpwat.ch"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://pumpwat.ch",
+  ),
   openGraph: {
     siteName: "PumpWatch",
-    url: "https://pumpwat.ch",
+    url: process.env.NEXT_PUBLIC_APP_URL ?? "https://pumpwat.ch",
     type: "website",
   },
 };
@@ -29,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans bg-surface text-white antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

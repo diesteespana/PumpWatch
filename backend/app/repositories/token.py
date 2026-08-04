@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.token import Token, UserTrackedToken
@@ -46,3 +47,29 @@ class TokenRepository(BaseRepository[Token]):
             .distinct()
         )
         return list(result.scalars().all())
+
+    async def add_user_tracking(
+        self,
+        user_id: uuid.UUID,
+        token_id: uuid.UUID,
+        threshold_usd: float | None = None,
+    ) -> None:
+        tracking = UserTrackedToken(
+            user_id=user_id,
+            token_id=token_id,
+            threshold_usd=threshold_usd,
+            created_at=datetime.now(timezone.utc),
+        )
+        self._session.add(tracking)
+        await self._session.flush()
+
+    async def remove_user_tracking(
+        self, user_id: uuid.UUID, token_id: uuid.UUID
+    ) -> bool:
+        result = await self._session.execute(
+            delete(UserTrackedToken).where(
+                UserTrackedToken.user_id == user_id,
+                UserTrackedToken.token_id == token_id,
+            )
+        )
+        return result.rowcount > 0

@@ -109,6 +109,53 @@ async def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    async def score_wallets() -> None:
+        from app.services.analytics_service import WalletAnalyticsService
+        async with AsyncSessionLocal() as session:
+            svc = WalletAnalyticsService(session)
+            scored = await svc.score_all_tracked_wallets()
+            if scored:
+                logger.info("wallet_scoring_complete", count=scored)
+
+    scheduler.add_job(
+        score_wallets,
+        trigger=IntervalTrigger(hours=1),
+        id="wallet_scoring",
+        name="Hourly wallet heuristic scoring",
+        replace_existing=True,
+    )
+
+    async def run_strategies() -> None:
+        from app.services.risk_management_service import RiskManagementService
+        from app.services.strategy_engine_service import StrategyEngineService
+        from app.repositories.paper_trading import PaperPortfolioRepository
+        async with AsyncSessionLocal() as session:
+            engine = StrategyEngineService(session)
+            trades = await engine.run_all_active()
+
+            # After strategy trades, run risk checks on all portfolios
+            from sqlalchemy import select
+            from app.models.paper_trading import PaperPortfolio
+            result = await session.execute(
+                select(PaperPortfolio.id).where(PaperPortfolio.is_active.is_(True))
+            )
+            portfolio_ids = result.scalars().all()
+            for portfolio_id in portfolio_ids:
+                risk_svc = RiskManagementService(session)
+                await risk_svc.run_checks_for_portfolio(portfolio_id)
+
+            await session.commit()
+            if trades:
+                logger.info("strategy_engine_cycle", trades_fired=trades)
+
+    scheduler.add_job(
+        run_strategies,
+        trigger=IntervalTrigger(minutes=5),
+        id="strategy_engine",
+        name="Strategy evaluation + risk management (5-min cycle)",
+        replace_existing=True,
+    )
+
     scheduler.start()
     logger.info(
         "scheduler_started",

@@ -33,6 +33,8 @@ dependencies = [
     # Notifications
     "aiosmtplib>=3.0",
     "python-telegram-bot>=21.0",
+    # AI
+    "anthropic>=0.30",
 ]
 
 [project.optional-dependencies]

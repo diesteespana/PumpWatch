@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "noreply@pumpwat.ch"
 
+    # ── AI (Anthropic) ────────────────────────────────────
+    anthropic_api_key: str = ""          # leave empty to disable AI features
+    ai_model: str = "claude-sonnet-5"   # model used for all AI inference
+
     # ── CORS ──────────────────────────────────────────────
     allowed_origins: list[str] = ["http://localhost:3000"]
 
