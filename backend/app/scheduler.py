@@ -1,10 +1,9 @@
 """
 APScheduler configuration for PumpWatch background jobs.
 
-- AsyncIOScheduler shares the FastAPI event loop — no thread overhead
-- max_instances=1 per job guarantees no overlapping poll cycles
-- misfire_grace_time=30: if a cycle runs long, wait before skipping
-- Jobs import their dependencies lazily to avoid circular imports at startup
+- AsyncIOScheduler: shares FastAPI's event loop, no thread overhead
+- max_instances=1 per job: no overlapping detection cycles
+- misfire_grace_time=30: allows a slow cycle to finish before skipping
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -43,11 +42,18 @@ async def start_scheduler() -> None:
     from app.database.session import AsyncSessionLocal
     from app.events.engine import DefaultDetectionEngine
     from app.events.threshold import ThresholdConfig
+    from app.notifications.channels.discord import DiscordChannel
+    from app.notifications.channels.email import EmailChannel
+    from app.notifications.channels.telegram import TelegramChannel
+    from app.notifications.rate_limiter import NotificationRateLimiter
+    from app.notifications.service import DefaultNotificationService
     from app.repositories.event import EventRepository
     from app.repositories.wallet import WalletRepository
     from app.services.detection_service import DetectionService
 
     redis_client = get_redis_client()
+
+    # Shared, long-lived objects (safe to reuse across cycles)
     provider = create_blockchain_provider()
     price_oracle = CoinGeckoPriceOracle(
         redis_client=redis_client,
@@ -56,6 +62,7 @@ async def start_scheduler() -> None:
     block_tracker = BlockTracker(redis_client=redis_client, chain="ethereum")
     address_registry = AddressRegistry()
     threshold_config = ThresholdConfig.from_settings()
+    rate_limiter = NotificationRateLimiter(redis_client=redis_client)
 
     chain_service = EthereumChainService(
         provider=provider,
@@ -75,25 +82,30 @@ async def start_scheduler() -> None:
                 event_repo=event_repo,
                 config=threshold_config,
             )
+
+            notifier = DefaultNotificationService(
+                session=session,
+                rate_limiter=rate_limiter,
+            )
+            notifier.register_channel(TelegramChannel())
+            notifier.register_channel(DiscordChannel())
+            notifier.register_channel(EmailChannel())
+
             service = DetectionService(
                 chain_service=chain_service,
                 detection_engine=engine,
+                notification_service=notifier,
             )
-            events = await service.run_cycle(watched_addresses)
 
+            events = await service.run_cycle(watched_addresses)
             if events:
-                logger.info(
-                    "scheduler_events_detected",
-                    count=len(events),
-                    types=[e.event_type for e in events],
-                )
-            # Milestone 5: pass events to notification service here
+                logger.info("scheduler_cycle_events", count=len(events))
 
     scheduler.add_job(
         poll_ethereum,
         trigger=IntervalTrigger(seconds=settings.blockchain_poll_interval_seconds),
         id="ethereum_poll",
-        name="Ethereum detection cycle",
+        name="Ethereum detection + notification cycle",
         replace_existing=True,
     )
 
