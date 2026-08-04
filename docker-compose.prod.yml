@@ -1,0 +1,48 @@
+version: "3.9"
+
+# Production overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Differences from dev compose:
+#   - No source volume mounts (use the built image as-is)
+#   - Backend and frontend NOT exposed directly; nginx proxies them
+#   - NEXT_PUBLIC_API_URL passed as build arg so it's baked into the JS bundle
+#   - DB and Redis ports NOT exposed to host
+
+services:
+  db:
+    ports: []          # not exposed outside the Docker network
+
+  redis:
+    ports: []
+
+  backend:
+    volumes: []        # no source mount; use the built image
+    ports: []
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: https://api.pumpwat.ch
+        NEXT_PUBLIC_APP_URL: https://pumpwat.ch
+    ports: []
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.pumpwat.ch
+      NEXT_PUBLIC_APP_URL: https://pumpwat.ch
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/pumpwatch.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
