@@ -1,4 +1,4 @@
-from enum import StrEnum
+﻿from enum import StrEnum
 from functools import lru_cache
 
 from pydantic import Field, PostgresDsn, RedisDsn
@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     # ── AI (Anthropic) ────────────────────────────────────
     anthropic_api_key: str = ""          # leave empty to disable AI features
     ai_model: str = "claude-sonnet-5"   # model used for all AI inference
+    # ── Trading Kill Switch ───────────────────────────────
+    # Must be explicitly set to true in production before strategy engine fires trades.
+    # Keeps automated execution off by default so a misconfigured deploy can't trade.
+    trading_enabled: bool = False
 
     # ── CORS ──────────────────────────────────────────────
     allowed_origins: list[str] = ["http://localhost:3000"]

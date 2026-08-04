@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.factory import create_prediction_engine
 from app.ai.interfaces import SignalDirection
 from app.blockchain.price_oracle import CoinGeckoPriceOracle
+from app.core.config import get_settings
 from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
 from app.database.redis import get_redis_client
@@ -31,6 +32,7 @@ from app.services.paper_trading_service import PaperTradingService
 logger = get_logger(__name__)
 
 _DEFAULT_MAX_DRAWDOWN_PCT = Decimal("30")
+_DEFAULT_MAX_POSITION_PCT = Decimal("25")
 
 
 class StrategyEngineService:
@@ -46,6 +48,9 @@ class StrategyEngineService:
 
     async def run_all_active(self) -> int:
         """Evaluate every active strategy. Returns count of trades fired."""
+        if not get_settings().trading_enabled:
+            logger.info("strategy_engine_skipped", reason="TRADING_ENABLED=false")
+            return 0
         strategies = await self._strategy_repo.get_all_active()
         trades_fired = 0
         for strategy in strategies:
@@ -104,6 +109,7 @@ class StrategyEngineService:
 
         risk = await self._risk_repo.get_by_portfolio(strategy.portfolio_id)
         max_dd_pct = Decimal(str(risk.max_drawdown_pct)) if risk else _DEFAULT_MAX_DRAWDOWN_PCT
+        max_pos_pct = Decimal(str(risk.max_position_pct)) if risk else _DEFAULT_MAX_POSITION_PCT
         starting = Decimal(str(portfolio.starting_balance))
         equity_floor = starting * (1 - max_dd_pct / 100)
         # Approximate equity as current_cash (positions not fetched here for speed)
@@ -130,11 +136,14 @@ class StrategyEngineService:
             )
             return False
 
-        # Calculate quantity from size_pct
+        # Calculate quantity from size_pct, capped by max_position_pct of equity
         size_pct = Decimal(str(strategy.size_pct)) / 100
         if strategy.action == "buy":
             cash = Decimal(str(portfolio.current_cash))
             budget = cash * size_pct
+            # Hard cap: a single trade may not exceed max_position_pct % of equity
+            max_budget = approx_equity * (max_pos_pct / 100)
+            budget = min(budget, max_budget)
             quantity = (budget / price).quantize(Decimal("0.0000000001"))
         else:  # sell
             from app.repositories.paper_trading import PaperPositionRepository

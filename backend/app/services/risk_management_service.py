@@ -13,6 +13,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.blockchain.price_oracle import CoinGeckoPriceOracle
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.database.redis import get_redis_client
 from app.repositories.paper_trading import (
@@ -43,6 +44,9 @@ class RiskManagementService:
         """
         Evaluate every open position. Returns list of action descriptions taken.
         """
+        if not get_settings().trading_enabled:
+            return []
+
         portfolio = await self._portfolio_repo.get_by_id(portfolio_id)
         if portfolio is None:
             return []
