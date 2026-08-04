@@ -1,80 +1,74 @@
 """
 Detection engine interfaces.
 
-Milestone 4 implements these. They are defined here so Milestone 3 DB models
-and Milestone 5 notification engine can depend on them today.
+EventClassifier now takes EnrichedTransfer (defined in M2) instead of the
+original (RawTransaction, TokenTransfer, usd_value) triple. EnrichedTransfer
+already carries USD value, exchange labels, and token metadata — classifiers
+need no additional enrichment.
 """
 from abc import ABC, abstractmethod
 
-from app.blockchain.interfaces import RawTransaction, TokenTransfer
 from app.events.types import BaseEvent
 
 
 class EventClassifier(ABC):
     """
-    Classifies a raw blockchain event into a typed BaseEvent (or None).
+    Classifies one EnrichedTransfer into a BaseEvent (or None).
 
-    Each classifier handles exactly one event type (SRP).
-    The detection engine runs all classifiers and collects results.
+    Each classifier is responsible for exactly one event type (SRP).
+    A single transfer can match multiple classifiers — the engine collects all.
+    Implementations must be stateless and side-effect-free.
     """
 
+    @property
     @abstractmethod
-    def classify(
-        self,
-        transaction: RawTransaction | None,
-        token_transfer: TokenTransfer | None,
-        usd_value: float,
-    ) -> BaseEvent | None:
+    def event_type(self) -> str:
+        """The EventType string this classifier produces."""
+
+    @abstractmethod
+    def classify(self, transfer: "EnrichedTransfer") -> BaseEvent | None:  # type: ignore[name-defined]
         """Return a BaseEvent if this classifier fires, else None."""
 
 
 class DetectionEngine(ABC):
     """
-    Orchestrates all classifiers over a stream of blockchain data.
+    Orchestrates all classifiers over a batch of enriched transfers.
 
-    Implementations run classifiers, deduplicate, and persist events.
+    Handles deduplication and persistence; classifiers stay pure.
     """
 
     @abstractmethod
-    async def process_transactions(
-        self,
-        transactions: list[RawTransaction],
-        token_transfers: list[TokenTransfer],
+    async def process_transfers(
+        self, transfers: list["EnrichedTransfer"]  # type: ignore[name-defined]
     ) -> list[BaseEvent]:
-        """Process a batch and return all detected events."""
+        """
+        Run every classifier on every transfer.
+        Persist new events, skip duplicates, return the full detected set.
+        """
 
     @abstractmethod
     async def run_cycle(self) -> int:
         """
-        Fetch latest blockchain data and process it.
-        Returns the number of events detected.
+        Fetch new blockchain data and run the full detection pass.
+        Returns the count of newly detected events.
         Called by the scheduler on each poll interval.
         """
 
 
 class WalletScorer(ABC):
-    """
-    AI interface for wallet reputation scoring.
-
-    Milestone 9 implementation. Defined here so Milestone 3 DB schema
-    includes the wallet_scores table from day one.
-    """
+    """AI interface for wallet reputation scoring — Milestone 9."""
 
     @abstractmethod
     async def score_wallet(self, wallet_address: str) -> float:
-        """Return a 0.0–1.0 reputation score for a wallet."""
+        """Return a 0.0–1.0 reputation score."""
 
     @abstractmethod
     async def get_wallet_insights(self, wallet_address: str) -> list[str]:
-        """Return human-readable insights about a wallet's historical behaviour."""
+        """Return human-readable observations about a wallet's history."""
 
 
 class MarketInsightEngine(ABC):
-    """
-    AI interface for market-level pattern recognition.
-
-    Milestone 9 implementation.
-    """
+    """AI interface for market-level pattern recognition — Milestone 9."""
 
     @abstractmethod
     async def explain_event(self, event: BaseEvent) -> str:

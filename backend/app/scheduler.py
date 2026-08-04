@@ -1,12 +1,10 @@
 """
 APScheduler configuration for PumpWatch background jobs.
 
-Design decisions:
-- AsyncIOScheduler: shares the event loop with FastAPI — no thread overhead
-- `misfire_grace_time`: if a cycle is still running when the next fires,
-  wait up to 30s before skipping — avoids duplicate processing
-- `max_instances=1`: guarantee only one poll cycle runs at a time per chain
-- Jobs are registered at startup, not at import time, so tests can skip them
+- AsyncIOScheduler shares the FastAPI event loop — no thread overhead
+- max_instances=1 per job guarantees no overlapping poll cycles
+- misfire_grace_time=30: if a cycle runs long, wait before skipping
+- Jobs import their dependencies lazily to avoid circular imports at startup
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -20,7 +18,6 @@ _scheduler: AsyncIOScheduler | None = None
 
 
 def get_scheduler() -> AsyncIOScheduler:
-    """Return the global scheduler instance (created on first call)."""
     global _scheduler
     if _scheduler is None:
         _scheduler = AsyncIOScheduler(
@@ -34,23 +31,31 @@ def get_scheduler() -> AsyncIOScheduler:
 
 
 async def start_scheduler() -> None:
-    """Start the scheduler and register all background jobs."""
     settings = get_settings()
     scheduler = get_scheduler()
 
-    # Lazy import to avoid circular deps during tests
     from app.blockchain.address_registry import AddressRegistry
     from app.blockchain.block_tracker import BlockTracker
     from app.blockchain.chain_service import EthereumChainService
     from app.blockchain.factory import create_blockchain_provider
     from app.blockchain.price_oracle import CoinGeckoPriceOracle
     from app.database.redis import get_redis_client
+    from app.database.session import AsyncSessionLocal
+    from app.events.engine import DefaultDetectionEngine
+    from app.events.threshold import ThresholdConfig
+    from app.repositories.event import EventRepository
+    from app.repositories.wallet import WalletRepository
+    from app.services.detection_service import DetectionService
 
     redis_client = get_redis_client()
     provider = create_blockchain_provider()
-    price_oracle = CoinGeckoPriceOracle(redis_client=redis_client)
+    price_oracle = CoinGeckoPriceOracle(
+        redis_client=redis_client,
+        api_key=settings.coingecko_api_key,
+    )
     block_tracker = BlockTracker(redis_client=redis_client, chain="ethereum")
     address_registry = AddressRegistry()
+    threshold_config = ThresholdConfig.from_settings()
 
     chain_service = EthereumChainService(
         provider=provider,
@@ -60,18 +65,35 @@ async def start_scheduler() -> None:
     )
 
     async def poll_ethereum() -> None:
-        # Milestone 3 will pull watched_addresses from the DB.
-        # For now we seed a handful of high-volume addresses for dev/demo.
-        demo_addresses: list[str] = []
-        transfers = await chain_service.poll_cycle(demo_addresses)
-        if transfers:
-            logger.info("scheduler_poll_complete", transfers=len(transfers))
+        async with AsyncSessionLocal() as session:
+            wallet_repo = WalletRepository(session)
+            event_repo = EventRepository(session)
+
+            watched_addresses = await wallet_repo.get_all_tracked_addresses("ethereum")
+
+            engine = DefaultDetectionEngine(
+                event_repo=event_repo,
+                config=threshold_config,
+            )
+            service = DetectionService(
+                chain_service=chain_service,
+                detection_engine=engine,
+            )
+            events = await service.run_cycle(watched_addresses)
+
+            if events:
+                logger.info(
+                    "scheduler_events_detected",
+                    count=len(events),
+                    types=[e.event_type for e in events],
+                )
+            # Milestone 5: pass events to notification service here
 
     scheduler.add_job(
         poll_ethereum,
         trigger=IntervalTrigger(seconds=settings.blockchain_poll_interval_seconds),
         id="ethereum_poll",
-        name="Ethereum block poller",
+        name="Ethereum detection cycle",
         replace_existing=True,
     )
 
@@ -79,6 +101,7 @@ async def start_scheduler() -> None:
     logger.info(
         "scheduler_started",
         interval_seconds=settings.blockchain_poll_interval_seconds,
+        provider=settings.active_blockchain_provider,
     )
 
 
